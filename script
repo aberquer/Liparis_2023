@@ -1,0 +1,1242 @@
+setwd("G:/EQUIPE_REG/PROJETS/LIFE_ANTHROPOFENS/4_ACTIONS_D/D2/D2.1/Suivis piezométriques et limnimétriques/Carte_Modélisation_scenario_Blangy")
+setwd("L:/Liparis")
+
+lipa<-read.table("limni_liparis.txt",header=T)
+str(lipa)
+lipa$Limni_site=as.factor(lipa$Limni_site)
+
+### Il y a un problème avec les altitudes, il semble y avoir un écart de 20 cm
+### Lancer ces lignes pour corriger le niveau d'eau:
+lipa[,c(6:23)]<-lipa[,c(6:23)]+0.2
+
+
+levels(lipa$Limni_site)
+lipa_OPAC<-lipa[lipa$Limni_site=="OPAC",]
+lipa_LAP<-lipa[lipa$Limni_site=="LAP",]
+lipa_CLA<-lipa[lipa$Limni_site=="CLA",]
+
+library("MuMIn")
+library('car')
+options(na.action = "na.pass")
+
+#### Trop peu d'échantillons pour performer un glm correctement!
+#### Stats bayesienne (en glm basée sur MCMC) davantage recommandée,
+
+library(rstanarm)
+library(bayesplot)
+library(shinystan)
+
+#### Fit_LAP_fl_mean ####
+fit_LAP_fl_mean<-stan_glm(ind_fl~Mean_Spr_Yr+
+                            Mean_Wr_Yr+
+                            Mean_Spr_Yr+
+                            Mean_Fl_Yr+
+                            Mean_Sm_Yr+
+                            Mean_Spr_Yr_Prev+
+                            Mean_Wr_Yr_Prev,
+                          data=lipa_LAP,
+                          family= poisson (link="log"),
+                          prior = normal(0,2),
+                          refresh=0,
+                          chains=2, iter=10000)
+print(fit_LAP_fl_mean)
+summary(fit_LAP_fl_mean)
+plot(fit_LAP_fl_mean)
+plot(fit_LAP_fl_mean,regex_pars = c("Mean_Wr_Yr",
+                                    "Mean_Spr_Yr",
+                                    "Mean_Fl_Yr",
+                                    "Mean_Sm_Yr",
+                                    "Mean_Spr_Yr_Prev",
+                                    "Mean_Wr_Yr_Prev"))
+plot(fit_LAP_fl_mean,plotfun="combo",regex_pars=c("Mean_Wr_Yr",
+                                                  "Mean_Spr_Yr",
+                                                  "Mean_Fl_Yr",
+                                                  "Mean_Sm_Yr",
+                                                  "Mean_Spr_Yr_Prev",
+                                                  "Mean_Wr_Yr_Prev"))
+posterior_vs_prior(fit_LAP_fl_mean,regex_pars = c("Mean_Spr_Yr","Mean_Wr_Yr",
+                                                  "Mean_Spr_Yr",
+                                                  "Mean_Fl_Yr",
+                                                  "Mean_Sm_Yr",
+                                                  "Mean_Spr_Yr_Prev",
+                                                  "Mean_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_fl_mean)
+dim(y_rep)
+launch_shinystan(fit_LAP_fl_mean,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_fl, pch=16,col="red"))
+
+fit2_LAP_fl_mean<-update(fit_LAP_fl_mean, ind_fl~
+                           Mean_Wr_Yr+
+                           Mean_Spr_Yr+
+                           Mean_Fl_Yr+
+                           Mean_Spr_Yr_Prev+
+                           Mean_Wr_Yr_Prev)
+summary(fit2_LAP_fl_mean)
+posterior_interval(fit2_LAP_fl_mean, prob = 0.95)
+
+fit3_LAP_fl_mean<-update(fit_LAP_fl_mean, ind_fl~
+                           Mean_Wr_Yr+
+                           Mean_Spr_Yr+
+                           Mean_Fl_Yr+
+                           Mean_Spr_Yr_Prev+
+                           Mean_Wr_Yr_Prev+
+                           I(Mean_Wr_Yr^2)+
+                           I(Mean_Spr_Yr^2)+
+                           I(Mean_Fl_Yr^2)+
+                           I(Mean_Spr_Yr_Prev^2)+
+                           I(Mean_Wr_Yr_Prev^2))
+summary(fit3_LAP_fl_mean)
+plot(fit_LAP_fl_mean,regex_pars = c("Mean_Wr_Yr",
+                                    "Mean_Spr_Yr",
+                                    "Mean_Fl_Yr",
+                                    "Mean_Sm_Yr",
+                                    "Mean_Spr_Yr_Prev",
+                                    "Mean_Wr_Yr_Prev"))
+
+loo_fit<-loo(fit_LAP_fl_mean, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_fl_mean, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_fl_mean, k_threshold=0.7)
+
+par(mfrow = 1:2, mar = c(5,3.8,1,0) + 0.1, las = 3)
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2, loo_fit3)
+loo_fit
+loo_fit2
+loo_fit3
+
+#### Fit_LAP_fl_MAX ####
+
+fit_LAP_fl_max<-stan_glm(ind_fl~Max_Spr_Yr+
+                           Max_Wr_Yr+
+                           Max_Fl_Yr+
+                           Max_Sm_Yr+
+                           Max_Spr_Yr_Prev+
+                           Max_Wr_Yr_Prev,
+                          data=lipa_LAP,
+                          family= poisson (link="log"),
+                          prior = normal(0,2),
+                          refresh=0,
+                          chains=2, iter=10000)
+print(fit_LAP_fl_max)
+summary(fit_LAP_fl_max)
+plot(fit_LAP_fl_max)
+plot(fit_LAP_fl_max,regex_pars = c("Max_Wr_Yr",
+                                   "Max_Spr_Yr",
+                                   "Max_Fl_Yr",
+                                   "Max_Sm_Yr",
+                                   "Max_Spr_Yr_Prev",
+                                   "Max_Wr_Yr_Prev"))
+plot(fit_LAP_fl_max,plotfun="combo",regex_pars=c("Max_Wr_Yr",
+                                                 "Max_Spr_Yr",
+                                                 "Max_Fl_Yr",
+                                                 "Max_Sm_Yr",
+                                                 "Max_Spr_Yr_Prev",
+                                                 "Max_Wr_Yr_Prev"))
+posterior_vs_prior(fit_LAP_fl_max,regex_pars = c("Max_Spr_Yr","Max_Wr_Yr",
+                                                 "Max_Spr_Yr",
+                                                 "Max_Fl_Yr",
+                                                 "Max_Sm_Yr",
+                                                 "Max_Spr_Yr_Prev",
+                                                 "Max_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_fl_max)
+dim(y_rep)
+launch_shinystan(fit_LAP_fl_max,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_fl, pch=16,col="red"))
+
+fit2_LAP_fl_max<-update(fit_LAP_fl_max, ind_fl~
+                          Max_Spr_Yr+
+                          Max_Wr_Yr+
+                          Max_Sm_Yr+
+                          Max_Wr_Yr_Prev
+                          )
+summary(fit2_LAP_fl_max)
+posterior_interval(fit2_LAP_fl_max, prob = 0.95)
+
+fit3_LAP_fl_max<-update(fit_LAP_fl_max, ind_fl~
+                          Max_Spr_Yr+
+                          Max_Wr_Yr+
+                          Max_Sm_Yr+
+                          Max_Wr_Yr_Prev+
+                          I(Max_Spr_Yr^2)+
+                          I(Max_Wr_Yr^2)+
+                          I(Max_Sm_Yr^2)+
+                          I(Max_Wr_Yr_Prev^2))
+summary(fit3_LAP_fl_max)
+
+loo_fit<-loo(fit_LAP_fl_max, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_fl_max, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_fl_max, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2, loo_fit3)
+loo_fit
+loo_fit2
+loo_fit3
+
+#### Fit_LAP_fl_Min ####
+
+fit_LAP_fl_min<-stan_glm(ind_fl~Min_Spr_Yr+
+                           Min_Wr_Yr+
+                           Min_Spr_Yr+
+                           Min_Fl_Yr+
+                           Min_Sm_Yr+
+                           Min_Spr_Yr_Prev+
+                           Min_Wr_Yr_Prev,
+                         data=lipa_LAP,
+                         family= poisson (link="log"),
+                         prior = normal(0,2),
+                         refresh=0,
+                         chains=2, iter=10000)
+print(fit_LAP_fl_min)
+summary(fit_LAP_fl_min)
+plot(fit_LAP_fl_min)
+plot(fit_LAP_fl_min,regex_pars = c("Min_Spr_Yr","Min_Wr_Yr",
+                                   "Min_Spr_Yr",
+                                   "Min_Fl_Yr",
+                                   "Min_Sm_Yr",
+                                   "Min_Spr_Yr_Prev",
+                                   "Min_Wr_Yr_Prev"))
+plot(fit_LAP_fl_min,plotfun="combo",regex_pars=c("Min_Spr_Yr","Min_Wr_Yr",
+                                                 "Min_Spr_Yr",
+                                                 "Min_Fl_Yr",
+                                                 "Min_Sm_Yr",
+                                                 "Min_Spr_Yr_Prev",
+                                                 "Min_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_LAP_fl_min,regex_pars = c("Min_Spr_Yr","Min_Wr_Yr",
+                                                 "Min_Spr_Yr",
+                                                 "Min_Fl_Yr",
+                                                 "Min_Sm_Yr",
+                                                 "Min_Spr_Yr_Prev",
+                                                 "Min_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_fl_min)
+dim(y_rep)
+launch_shinystan(fit_LAP_fl_min,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_fl, pch=16,col="red"))
+
+fit2_LAP_fl_min<-update(fit_LAP_fl_min, ind_fl~
+                          Min_Spr_Yr+
+                          Min_Spr_Yr_Prev+
+                          Min_Wr_Yr+
+                          Min_Fl_Yr
+                          )
+summary(fit2_LAP_fl_min)
+posterior_interval(fit2_LAP_fl_min, prob = 0.95)
+fit3_LAP_fl_min<-update(fit_LAP_fl_min, ind_fl~
+                          Min_Spr_Yr+
+                          Min_Spr_Yr_Prev+
+                          Min_Wr_Yr+
+                          Min_Fl_Yr+
+                          I(Min_Wr_Yr^2)+
+                          I(Min_Spr_Yr^2)+
+                          I(Min_Fl_Yr^2)+
+                          I(Min_Spr_Yr_Prev^2)
+                          )
+summary(fit3_LAP_fl_min)
+
+loo_fit<-loo(fit_LAP_fl_min, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_fl_min, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_fl_min, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2, loo_fit3)
+loo_fit
+loo_fit2
+loo_fit3
+
+
+#### Fit_LAP_veg_Mean ####
+fit_LAP_veg_mean<-stan_glm(ind_veg~Mean_Spr_Yr+
+                             Mean_Wr_Yr+
+                             Mean_Fl_Yr+
+                             Mean_Sm_Yr+
+                             Mean_Spr_Yr_Prev+
+                             Mean_Wr_Yr_Prev,
+                          data=lipa_LAP,
+                          family= poisson (link="log"),
+                          prior = normal(0,2),
+                          refresh=0,
+                          chains=2, iter=10000)
+print(fit_LAP_veg_mean)
+summary(fit_LAP_veg_mean)
+plot(fit_LAP_veg_mean)
+plot(fit_LAP_veg_mean,regex_pars = c("Mean_Wr_Yr",
+                                       "Mean_Spr_Yr",
+                                       "Mean_Fl_Yr",
+                                       "Mean_Sm_Yr",
+                                       "Mean_Spr_Yr_Prev",
+                                       "Mean_Wr_Yr_Prev"))
+plot(fit_LAP_veg_mean,plotfun="combo",regex_pars=c("Mean_Wr_Yr",
+                                                   "Mean_Spr_Yr",
+                                                   "Mean_Fl_Yr",
+                                                   "Mean_Sm_Yr",
+                                                   "Mean_Spr_Yr_Prev",
+                                                   "Mean_Wr_Yr_Prev"))
+posterior_vs_prior(fit_LAP_veg_mean,regex_pars = c("Mean_Spr_Yr","Mean_Wr_Yr",
+                                                   "Mean_Spr_Yr",
+                                                   "Mean_Fl_Yr",
+                                                   "Mean_Sm_Yr",
+                                                   "Mean_Spr_Yr_Prev",
+                                                   "Mean_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_veg_mean)
+dim(y_rep)
+launch_shinystan(fit_LAP_veg_mean,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_veg, pch=16,col="red"))
+
+fit2_LAP_veg_mean<-update(fit_LAP_veg_mean, ind_veg~
+                            Mean_Wr_Yr+
+                            Mean_Spr_Yr+
+                            Mean_Fl_Yr+
+                            Mean_Sm_Yr+
+                            Mean_Spr_Yr_Prev+
+                            Mean_Wr_Yr_Prev+
+                            I(Mean_Wr_Yr^2)+
+                            I(Mean_Spr_Yr^2)+
+                            I(Mean_Fl_Yr^2)+
+                            I(Mean_Sm_Yr^2)+
+                            I(Mean_Spr_Yr_Prev^2)+
+                            I(Mean_Wr_Yr_Prev^2))
+summary(fit2_LAP_veg_mean)
+
+
+fit3_LAP_veg_mean<-update(fit_LAP_veg_mean, ind_veg~
+                            Mean_Wr_Yr+
+                            Mean_Spr_Yr+
+                            Mean_Fl_Yr+
+                            Mean_Sm_Yr+
+                            Mean_Spr_Yr_Prev+
+                            Mean_Wr_Yr_Prev)
+summary(fit3_LAP_veg_mean)
+posterior_interval(fit3_LAP_veg_mean, prob = 0.95)
+loo_fit<-loo(fit_LAP_veg_mean, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_veg_mean, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_veg_mean, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2, loo_fit3)
+loo_fit
+loo_fit2
+loo_fit3
+
+#### Fit_LAP_veg_Max ####
+fit_LAP_veg_max<-stan_glm(ind_veg~
+                           Max_Wr_Yr+
+                           Max_Spr_Yr+
+                           Max_Fl_Yr+
+                           Max_Sm_Yr+
+                           Max_Spr_Yr_Prev+
+                           Max_Wr_Yr_Prev,
+                         data=lipa_LAP,
+                         family= poisson (link="log"),
+                         prior = normal(0,2),
+                         refresh=0,
+                         chains=2, iter=10000)
+print(fit_LAP_veg_max)
+summary(fit_LAP_veg_max)
+plot(fit_LAP_veg_max)
+plot(fit_LAP_veg_max,regex_pars = c("Max_Spr_Yr","Max_Wr_Yr",
+                                   "Max_Spr_Yr",
+                                   "Max_Fl_Yr",
+                                   "Max_Sm_Yr",
+                                   "Max_Spr_Yr_Prev",
+                                   "Max_Wr_Yr_Prev"))
+plot(fit_LAP_veg_max,plotfun="combo",regex_pars=c("Max_Spr_Yr","Max_Wr_Yr",
+                                                 "Max_Spr_Yr",
+                                                 "Max_Fl_Yr",
+                                                 "Max_Sm_Yr",
+                                                 "Max_Spr_Yr_Prev",
+                                                 "Max_Wr_Yr_Prev"))
+posterior_vs_prior(fit_LAP_veg_max,regex_pars = c("Max_Spr_Yr","Max_Wr_Yr",
+                                                 "Max_Spr_Yr",
+                                                 "Max_Fl_Yr",
+                                                 "Max_Sm_Yr",
+                                                 "Max_Spr_Yr_Prev",
+                                                 "Max_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_veg_max)
+dim(y_rep)
+launch_shinystan(fit_LAP_veg_max,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_veg, pch=16,col="red"))
+
+fit2_LAP_veg_max<-update(fit_LAP_veg_max, ind_veg~
+                           Max_Wr_Yr+
+                           Max_Spr_Yr+
+                           Max_Sm_Yr+
+                           Max_Spr_Yr_Prev+
+                           Max_Wr_Yr_Prev)
+summary(fit2_LAP_veg_max)
+
+fit3_LAP_veg_max<-update(fit_LAP_veg_max, ind_veg~Max_Wr_Yr+
+                           Max_Spr_Yr+
+                           Max_Sm_Yr+
+                           Max_Spr_Yr_Prev+
+                           Max_Wr_Yr_Prev+
+                           I(Max_Wr_Yr^2)+
+                           I(Max_Spr_Yr^2)+
+                           I(Max_Sm_Yr^2)+
+                           I(Max_Spr_Yr_Prev^2)+
+                           I(Max_Wr_Yr_Prev^2))
+summary(fit3_LAP_veg_max)
+posterior_interval(fit3_LAP_veg_max, prob = 0.95)
+
+loo_fit<-loo(fit_LAP_veg_max, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_veg_max, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_veg_max, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2, loo_fit3)
+loo_fit
+loo_fit2
+loo_fit3
+
+#### Fit_LAP_veg_Min ####
+fit_LAP_veg_min<-stan_glm(ind_veg~
+                           Min_Wr_Yr+
+                           Min_Spr_Yr+
+                           Min_Fl_Yr+
+                           Min_Sm_Yr+
+                           Min_Spr_Yr_Prev+
+                           Min_Wr_Yr_Prev,
+                         data=lipa_LAP,
+                         family= poisson (link="log"),
+                         prior = normal(0,2),
+                         refresh=0,
+                         chains=2, iter=10000)
+print(fit_LAP_veg_min)
+summary(fit_LAP_veg_min)
+posterior_interval(fit_LAP_veg_min, prob = 0.95)
+plot(fit_LAP_veg_min)
+plot(fit_LAP_veg_min,regex_pars = c("Min_Wr_Yr",
+                                   "Min_Spr_Yr",
+                                   "Min_Fl_Yr",
+                                   "Min_Sm_Yr",
+                                   "Min_Spr_Yr_Prev",
+                                   "Min_Wr_Yr_Prev"))
+plot(fit_LAP_veg_min,plotfun="combo",regex_pars=c("Min_Wr_Yr",
+                                                 "Min_Spr_Yr",
+                                                 "Min_Fl_Yr",
+                                                 "Min_Sm_Yr",
+                                                 "Min_Spr_Yr_Prev",
+                                                 "Min_Wr_Yr_Prev"))
+posterior_vs_prior(fit_LAP_veg_min,regex_pars = c("Min_Spr_Yr","Min_Wr_Yr",
+                                                 "Min_Spr_Yr",
+                                                 "Min_Fl_Yr",
+                                                 "Min_Sm_Yr",
+                                                 "Min_Spr_Yr_Prev",
+                                                 "Min_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_veg_min)
+dim(y_rep)
+launch_shinystan(fit_LAP_veg_min,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_veg, pch=16,col="red"))
+
+fit2_LAP_veg_min<-update(fit_LAP_veg_min, ind_veg~
+                           Min_Wr_Yr+
+                           Min_Spr_Yr+
+                           Min_Fl_Yr+
+                           Min_Sm_Yr+
+                           Min_Spr_Yr_Prev+
+                           Min_Wr_Yr_Prev+
+                           I(Min_Wr_Yr^2)+
+                           I(Min_Spr_Yr^2)+
+                           I(Min_Fl_Yr^2)+
+                           I(Min_Sm_Yr^2)+
+                           I(Min_Spr_Yr_Prev^2)+
+                           I(Min_Wr_Yr_Prev^2))
+summary(fit2_LAP_veg_min)
+
+fit3_LAP_veg_min<-update(fit_LAP_veg_min, ind_veg~
+                           Min_Wr_Yr+
+                           Min_Spr_Yr+
+                           Min_Fl_Yr+
+                           Min_Sm_Yr+
+                           Min_Spr_Yr_Prev+
+                           Min_Wr_Yr_Prev)
+summary(fit3_LAP_veg_min)
+
+loo_fit<-loo(fit_LAP_veg_min, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_veg_min, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_veg_min, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2)
+loo_fit
+loo_fit2
+loo_fit3
+#### Fit_LAP_tot_Mean ####
+fit_LAP_tot_mean<-stan_glm(ind_tot~
+                             Mean_Wr_Yr+
+                             Mean_Spr_Yr+
+                             Mean_Fl_Yr+
+                             Mean_Sm_Yr+
+                             Mean_Spr_Yr_Prev+
+                             Mean_Wr_Yr_Prev,
+                           data=lipa_LAP,
+                           family= poisson (link="log"),
+                           prior = normal(0,2),
+                           refresh=0,
+                           chains=2, iter=10000)
+print(fit_LAP_tot_mean)
+summary(fit_LAP_tot_mean)
+posterior_interval(fit_LAP_tot_mean, prob = 0.95)
+plot(fit_LAP_tot_mean)
+plot(fit_LAP_tot_mean,regex_pars = c("Mean_Spr_Yr","Mean_Wr_Yr",
+                                     "Mean_Spr_Yr",
+                                     "Mean_Fl_Yr",
+                                     "Mean_Sm_Yr",
+                                     "Mean_Spr_Yr_Prev",
+                                     "Mean_Wr_Yr_Prev"))
+plot(fit_LAP_tot_mean,plotfun="combo",regex_pars=c("Mean_Spr_Yr","Mean_Wr_Yr",
+                                                   "Mean_Spr_Yr",
+                                                   "Mean_Fl_Yr",
+                                                   "Mean_Sm_Yr",
+                                                   "Mean_Spr_Yr_Prev",
+                                                   "Mean_Wr_Yr_Prev"))
+posterior_vs_prior(fit_LAP_tot_mean,regex_pars = c("Mean_Spr_Yr","Mean_Wr_Yr",
+                                                   "Mean_Spr_Yr",
+                                                   "Mean_Fl_Yr",
+                                                   "Mean_Sm_Yr",
+                                                   "Mean_Spr_Yr_Prev",
+                                                   "Mean_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_tot_mean)
+dim(y_rep)
+launch_shinystan(fit_LAP_tot_mean,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_tot, pch=16,col="red"))
+
+fit2_LAP_tot_mean<-update(fit_LAP_tot_mean, ind_tot~
+                            Mean_Wr_Yr+
+                            Mean_Spr_Yr+
+                            Mean_Fl_Yr+
+                            Mean_Sm_Yr+
+                            Mean_Spr_Yr_Prev+
+                            Mean_Wr_Yr_Prev
+                          +I(Mean_Wr_Yr^2)+
+                            I(Mean_Spr_Yr^2)+
+                            I(Mean_Fl_Yr^2)+
+                            I(Mean_Sm_Yr^2)+
+                            I(Mean_Spr_Yr_Prev^2)+
+                            I(Mean_Wr_Yr_Prev^2))
+summary(fit2_LAP_tot_mean)
+
+#fit3_LAP_tot_mean<-update(fit_LAP_tot_mean, ind_tot~
+                            Mean_Wr_Yr+
+                            Mean_Spr_Yr+
+                            Mean_Fl_Yr+
+                            Mean_Sm_Yr+
+                            Mean_Spr_Yr_Prev+
+                            Mean_Wr_Yr_Prev)
+summary(fit3_LAP_tot_mean)
+
+loo_fit<-loo(fit_LAP_tot_mean, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_tot_mean, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_tot_mean, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2)
+loo_fit
+loo_fit2
+loo_fit3
+#### Fit_LAP_tot_Max ####
+fit_LAP_tot_max<-stan_glm(ind_tot~
+                           Max_Wr_Yr+
+                           Max_Spr_Yr+
+                           Max_Fl_Yr+
+                           Max_Sm_Yr+
+                           Max_Spr_Yr_Prev+
+                           Max_Wr_Yr_Prev,
+                         data=lipa_LAP,
+                         family= poisson (link="log"),
+                         prior = normal(0,2),
+                         refresh=0,
+                         chains=2, iter=10000)
+print(fit_LAP_tot_max)
+summary(fit_LAP_tot_max)
+plot(fit_LAP_tot_max)
+plot(fit_LAP_tot_max,regex_pars = c("Max_Wr_Yr",
+                                   "Max_Spr_Yr",
+                                   "Max_Fl_Yr",
+                                   "Max_Sm_Yr",
+                                   "Max_Spr_Yr_Prev",
+                                   "Max_Wr_Yr_Prev"))
+plot(fit_LAP_tot_max,plotfun="combo",regex_pars=c("Max_Wr_Yr",
+                                                 "Max_Spr_Yr",
+                                                 "Max_Fl_Yr",
+                                                 "Max_Sm_Yr",
+                                                 "Max_Spr_Yr_Prev",
+                                                 "Max_Wr_Yr_Prev"))
+posterior_vs_prior(fit_LAP_tot_max,regex_pars = c("Max_Spr_Yr","Max_Wr_Yr",
+                                                 "Max_Spr_Yr",
+                                                 "Max_Fl_Yr",
+                                                 "Max_Sm_Yr",
+                                                 "Max_Spr_Yr_Prev",
+                                                 "Max_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_tot_max)
+dim(y_rep)
+launch_shinystan(fit_LAP_tot_max,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_tot, pch=16,col="red"))
+
+fit2_LAP_tot_max<-update(fit_LAP_tot_max, ind_tot~
+                           Max_Wr_Yr+
+                           Max_Spr_Yr+
+                           Max_Fl_Yr+
+                           Max_Sm_Yr+
+                           Max_Wr_Yr_Prev)
+summary(fit2_LAP_tot_max)
+
+fit3_LAP_tot_max<-update(fit_LAP_tot_max, ind_tot~
+                           Max_Wr_Yr+
+                           Max_Spr_Yr+
+                           Max_Sm_Yr+
+                           Max_Fl_Yr+
+                           Max_Wr_Yr_Prev+
+                           I(Max_Wr_Yr^2)+
+                           I(Max_Spr_Yr^2)+
+                           I(Max_Sm_Yr^2)+
+                           I(Max_Fl_Yr^2)+
+                           I(Max_Wr_Yr_Prev^2))
+summary(fit3_LAP_tot_max)
+posterior_interval(fit3_LAP_tot_max, prob = 0.95)
+
+loo_fit<-loo(fit_LAP_tot_max, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_tot_max, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_tot_max, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2, loo_fit3)
+loo_fit
+loo_fit2
+loo_fit3
+
+#### Fit_LAP_tot_Min ####
+fit_LAP_tot_min<-stan_glm(ind_tot~Min_Wr_Yr+
+                           Min_Spr_Yr+
+                           Min_Fl_Yr+
+                           Min_Sm_Yr+
+                           Min_Spr_Yr_Prev+
+                           Min_Wr_Yr_Prev,
+                         data=lipa_LAP,
+                         family= poisson (link="log"),
+                         prior = normal(0,2),
+                         refresh=0,
+                         chains=2, iter=10000)
+print(fit_LAP_tot_min)
+summary(fit_LAP_tot_min)
+posterior_interval(fit_LAP_tot_min, prob = 0.95)
+plot(fit_LAP_tot_min)
+plot(fit_LAP_tot_min,regex_pars = c("Min_Spr_Yr","Min_Wr_Yr",
+                                   "Min_Spr_Yr",
+                                   "Min_Fl_Yr",
+                                   "Min_Sm_Yr",
+                                   "Min_Spr_Yr_Prev",
+                                   "Min_Wr_Yr_Prev"))
+plot(fit_LAP_tot_min,plotfun="combo",regex_pars=c("Min_Spr_Yr","Min_Wr_Yr",
+                                                 "Min_Spr_Yr",
+                                                 "Min_Fl_Yr",
+                                                 "Min_Sm_Yr",
+                                                 "Min_Spr_Yr_Prev",
+                                                 "Min_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_LAP_tot_min,regex_pars = c("Min_Spr_Yr","Min_Wr_Yr",
+                                                 "Min_Spr_Yr",
+                                                 "Min_Fl_Yr",
+                                                 "Min_Sm_Yr",
+                                                 "Min_Spr_Yr_Prev",
+                                                 "Min_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_LAP_tot_min)
+dim(y_rep)
+launch_shinystan(fit_LAP_tot_min,ppd=FALSE)
+
+boxplot(y_rep)
+with(lipa_LAP,points (ind_tot, pch=16,col="red"))
+
+fit2_LAP_tot_min<-update(fit_LAP_tot_min, ind_tot~
+                           Min_Wr_Yr+
+                           Min_Spr_Yr+
+                           Min_Fl_Yr+
+                           Min_Sm_Yr+
+                           Min_Spr_Yr_Prev+
+                           Min_Wr_Yr_Prev+
+                           I(Min_Wr_Yr^2)+
+                           I(Min_Spr_Yr^2)+
+                           I(Min_Fl_Yr^2)+
+                           I(Min_Sm_Yr^2)+
+                           I(Min_Spr_Yr_Prev^2)+
+                           I(Min_Wr_Yr_Prev^2))
+summary(fit2_LAP_tot_min)
+
+fit3_LAP_tot_min<-update(fit_LAP_tot_min, ind_tot~Min_Spr_Yr+
+                           Min_Wr_Yr+
+                           Min_Spr_Yr+
+                           Min_Fl_Yr+
+                           Min_Sm_Yr+
+                           Min_Spr_Yr_Prev+
+                           Min_Wr_Yr_Prev)
+summary(fit3_LAP_tot_min)
+
+loo_fit<-loo(fit_LAP_tot_min, k_threshold=0.7)
+loo_fit2<-loo(fit2_LAP_tot_min, k_threshold=0.7)
+loo_fit3<-loo(fit3_LAP_tot_min, k_threshold=0.7)
+
+plot(loo_fit, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+
+loo_compare(loo_fit,loo_fit2)
+loo_fit
+loo_fit2
+loo_fit3
+
+#### loo_fit fits good the posterior distribution, therefore it's good to keep it !
+
+
+#### Focus on 2017: Internshipp study by Eric Bastien ####
+#### What are the waterlevels tolerated by the Liparis population? ####
+
+
+data_water <- read.table("niveau_eau.txt",header=T)
+str(data_water)
+data_water<-data_water[!data_water$Cote_mNGF=="na",]
+data_water$Cote_mNGF<-as.numeric(data_water$Cote_mNGF)
+### Apply the +0.2m wl
+data_water$Cote_mNGF=data_water$Cote_mNGF+0.2 #Correction due to measurrement with rtk gps
+
+head(data_water)
+
+data_water$Date_fixee=as.Date(data_water$Date_fixee, format="%d/%m/%Y")
+data_water$Month=as.numeric(substring(data_water$Date_fixee,first=6, last=7))
+
+#data_water=data_water[data_water$Date_fixee<as.Date("2017-07-15")&data_water$Date_fixee>as.Date("2012-07-15"),]#For analysis on data alti_lipa 2017
+data_water=data_water[data_water$Date_fixee<as.Date("2023-07-15")&data_water$Date_fixee>as.Date("2018-07-15"),]#For analysis on data alti_lipa 2023
+
+plot(Cote_mNGF~Date_fixee,data=data_water)
+
+Winter_LAP<-data_water[(data_water$Month== 12 | data_water$Month== 1 | data_water$Month== 2 | data_water$Month== 3) &data_water$Echelle=="Lapierre",]
+Spring_LAP<-data_water[(data_water$Month== 3 | data_water$Month== 4 | data_water$Month== 5 | data_water$Month== 6) &data_water$Echelle=="Lapierre",]
+Summer_LAP<-data_water[(data_water$Month== 6 | data_water$Month== 7 | data_water$Month== 8 | data_water$Month== 9)&data_water$Echelle=="Lapierre",]
+Fall_LAP<-data_water[(data_water$Month== 9 | data_water$Month== 10 | data_water$Month== 11 | data_water$Month== 12)&data_water$Echelle=="Lapierre",]
+
+summary(Winter_LAP$Cote_mNGF)
+summary(Spring_LAP$Cote_mNGF)
+summary(Summer_LAP$Cote_mNGF)
+summary(Fall_LAP$Cote_mNGF)
+
+boxplot(Winter_LAP$Cote_mNGF,Spring_LAP$Cote_mNGF,Summer_LAP$Cote_mNGF,Fall_LAP$Cote_mNGF)
+
+#### Liparis Altitudes ####
+# Do we have a difference between the observed Liparis (flowering and/or vegetative) and waterlevels by season?
+
+Alti_lipa<- read.table ("alti_lipa_pheno.txt", header=T)
+str(Alti_lipa)
+#Alti_lipa<-Alti_lipa[c(1:1675),]#2017
+Alti_lipa<-Alti_lipa[c(1676:1705),]#2023
+Alti_lipa_fl<-Alti_lipa[Alti_lipa$fleur>0,]
+Alti_lipa_veg<-Alti_lipa[Alti_lipa$veget>0,]
+Alti_lipa_tot<-Alti_lipa[Alti_lipa$pied>0,]
+Alti_lipa_abs<-Alti_lipa[Alti_lipa$pied==0,]
+
+plot(Alti_lipa_fl$alt)
+shapiro.test(Alti_lipa_fl$alt)
+shapiro.test(Alti_lipa_veg$alt)
+shapiro.test(Alti_lipa_tot$alt)
+shapiro.test(Alti_lipa_abs$alt)
+plot(Alti_lipa_abs$alt)
+# Our samples are normally distributed
+
+### Unpaired Student tests to compared if the altitude of Lipa populations signif differ from WL
+
+t.test(Alti_lipa_fl$alt,Winter_LAP$Cote_mNGF)
+t.test(Alti_lipa_fl$alt,Spring_LAP$Cote_mNGF)
+t.test(Alti_lipa_fl$alt,Summer_LAP$Cote_mNGF)
+t.test(Alti_lipa_fl$alt,Fall_LAP$Cote_mNGF)
+
+t.test(Alti_lipa_veg$alt,Winter_LAP$Cote_mNGF)
+t.test(Alti_lipa_veg$alt,Spring_LAP$Cote_mNGF)
+t.test(Alti_lipa_veg$alt,Summer_LAP$Cote_mNGF)
+t.test(Alti_lipa_veg$alt,Fall_LAP$Cote_mNGF)
+
+t.test(Alti_lipa_tot$alt,Winter_LAP$Cote_mNGF)
+t.test(Alti_lipa_tot$alt,Spring_LAP$Cote_mNGF)
+t.test(Alti_lipa_tot$alt,Summer_LAP$Cote_mNGF)
+t.test(Alti_lipa_tot$alt,Fall_LAP$Cote_mNGF)
+
+
+#### Presence of Liparis for each quadrtat ###
+
+data_maille<- read.table("lipa_mailles_emb.txt", header=T)
+data_maille[,c(14:31)]<-data_maille[,c(14:31)]+0.2 #Apply a correction due to a rtk measurement of the limni scale
+
+data_maille<-data_maille[!data_maille$Alti_mean==0,]
+str(data_maille)
+data_maille$Year=as.factor(data_maille$Year)
+
+for(i in levels (data_maille$Year)){
+
+Pres<-data_maille[data_maille$Presabs>=1&data_maille$Year==i,]
+Abs<-data_maille[data_maille$Presabs==0&data_maille$Year==i,]
+print(i)
+print(t.test(Pres$Alti_mean,Abs$Alti_mean))
+print(t.test(Pres$Alti_stdev,Abs$Alti_stdev))
+}
+
+
+#### Presence according to altitude and WL ####
+#Perform a redundant analysis to include the correlation between factors
+# Then work on components to perform adequate models
+
+lipa_mailles_emb<- read.table("lipa_mailles_emb.txt", header=T)
+lipa_mailles_emb[,c(14:31)]<-lipa_mailles_emb[,c(14:31)]+0.2 #Apply a correction due to a rtk measurement of the limni scale
+
+str(lipa_mailles_emb)
+
+summary(lipa_mailles_emb[lipa_mailles_emb$Presabs==1,]$Alti_mean)
+summary(lipa_mailles_emb[lipa_mailles_emb$Presabs==0,]$Alti_mean)
+
+library(factoextra)
+library(FactoMineR)
+
+pca.alti<-PCA(lipa_mailles_emb[,c(14,17,20,23,26,29)],graph=FALSE,scale.unit=T,ncp=10)
+get_eigenvalue(pca.alti)
+fviz_eig(pca.alti,addlabels=T,ylim=c(0,50))
+fviz_pca_var(pca.alti,col.var="black")
+fviz_pca_ind(pca.alti,col.var="black")
+
+# Due to a high correlation between variables, we select only 2 component as variables, representing more than 80% of the explained variance. since on the figure we see that a maximal density of flowering seems to happen while the winter of the previous year before presented higher water levels, 
+# we test the effect of this variable (in winter) on the number of occurences. We also test the effect of other season waterlevels.
+
+
+fit_pres_mail1<-stan_glm(Presabs~Alti_mean+Alti_stdev+
+                             Mean_Wr_Yr+
+                             Mean_Spr_Yr+
+                             Mean_Fl_Yr+
+                             Mean_Sm_Yr+
+                             Mean_Spr_Yr_Prev+
+                             Mean_Wr_Yr_Prev,
+                             data=lipa_mailles_emb,
+                         family=binomial (link="logit"),
+                         prior=normal(0,2),
+                         chains=2,iter=10000)
+summary(fit_pres_mail1)
+posterior_interval(fit_pres_mail1, prob = 0.90)
+plot(fit_pres_mail1)
+launch_shinystan(fit_pres_mail1)
+
+plot(fit_pres_mail1,regex_pars = c("Alti_mean","Alti_stdev","Mean_Wr_Yr",
+                                    "Mean_Spr_Yr",
+                                    "Mean_Fl_Yr",
+                                    "Mean_Sm_Yr",
+                                    "Mean_Spr_Yr_Prev",
+                                    "Mean_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_pres_mail1,regex_pars = c("Alti_mean","Mean_Wr_Yr",
+                                                  "Mean_Spr_Yr",
+                                                  "Mean_Fl_Yr",
+                                                  "Mean_Sm_Yr",
+                                                  "Mean_Spr_Yr_Prev",
+                                                  "Mean_Wr_Yr_Prev"))
+
+y_rep<-posterior_predict(fit_pres_mail1,draws=500)
+dim(y_rep)
+launch_shinystan(fit_pres_mail1,ppd=FALSE)
+
+#boxplot(y_rep)
+#with(lipa_mailles_emb,points (Presabs, pch=16,col="red"))
+
+fit_pres_mail1b<-update(fit_pres_mail1, Presabs~Alti_mean+Alti_stdev+Mean_Wr_Yr+Mean_Sm_Yr+
+                         Mean_Spr_Yr+Mean_Fl_Yr)
+summary(fit_pres_mail1b)
+
+fit_pres_mail1c<-update(fit_pres_mail1, Presabs~Alti_mean+Alti_stdev+Mean_Wr_Yr+
+                          Mean_Spr_Yr+Mean_Fl_Yr)
+summary(fit_pres_mail1c)
+
+fit_pres_mail1d<-update(fit_pres_mail1, Presabs~Alti_mean+Alti_stdev+Mean_Sm_Yr+
+                          Mean_Spr_Yr+Mean_Fl_Yr)
+summary(fit_pres_mail1d)
+
+fit_pres_mail2<-update(fit_pres_mail1, Presabs~Alti_mean+Alti_stdev+
+                           Mean_Spr_Yr+Mean_Fl_Yr)
+summary(fit_pres_mail2)
+
+fit_pres_mail3<-update(fit_pres_mail1, Presabs~Alti_mean+
+                         Mean_Spr_Yr+Mean_Fl_Yr)
+#summary(fit_pres_mail3)
+
+fit_pres_mail4<-update(fit_pres_mail1, Presabs~Alti_mean+Alti_stdev+
+                         Mean_Spr_Yr+Mean_Fl_Yr+
+                         I(Mean_Spr_Yr^2)+I(Mean_Fl_Yr^2))
+
+fit_pres_mail5<-update(fit_pres_mail1, Presabs~Alti_mean+Alti_stdev+
+                         Mean_Spr_Yr+
+                         I(Mean_Spr_Yr^2))
+
+fit_pres_mail6<-update(fit_pres_mail1, Presabs~Alti_mean+Alti_stdev+
+                         Mean_Fl_Yr+
+                         I(Mean_Fl_Yr^2))
+
+fit_pres_mail7<-update(fit_pres_mail1, Presabs~Alti_mean+
+                         Mean_Spr_Yr+Mean_Fl_Yr+
+                         I(Mean_Spr_Yr^2)+I(Mean_Fl_Yr^2))
+
+fit_pres_mail8<-update(fit_pres_mail1, Presabs~
+                         Mean_Spr_Yr+Mean_Fl_Yr+
+                         I(Mean_Spr_Yr^2)+I(Mean_Fl_Yr^2))
+
+loo_fit1<-loo(fit_pres_mail1, k_threshold=0.7)
+loo_fit2<-loo(fit_pres_mail2, k_threshold=0.7)
+loo_fit3<-loo(fit_pres_mail3, k_threshold=0.7)
+loo_fit4<-loo(fit_pres_mail4, k_threshold=0.7)
+loo_fit5<-loo(fit_pres_mail5, k_threshold=0.7)
+loo_fit6<-loo(fit_pres_mail6, k_threshold=0.7)
+loo_fit7<-loo(fit_pres_mail7, k_threshold=0.7)
+loo_fit8<-loo(fit_pres_mail8, k_threshold=0.7)
+loo_fit1b<-loo(fit_pres_mail1b, k_threshold=0.7)
+loo_fit1c<-loo(fit_pres_mail1c, k_threshold=0.7)
+loo_fit1d<-loo(fit_pres_mail1d, k_threshold=0.7)
+
+plot(loo_fit1, label_points = TRUE)
+plot(loo_fit2, label_points = TRUE)
+plot(loo_fit3, label_points = TRUE)
+plot(loo_fit4, label_points = TRUE)
+plot(loo_fit5, label_points = TRUE)
+plot(loo_fit6, label_points = TRUE)
+plot(loo_fit7, label_points = TRUE)
+plot(loo_fit8, label_points = TRUE)
+
+loo_compare(loo_fit1,loo_fit2, loo_fit3, loo_fit4,loo_fit5,loo_fit6, loo_fit7, loo_fit8,loo_fit1b,loo_fit1c,loo_fit1d)
+
+#The parcimonious model seems to be the fit_pres_mail&d one. Adding the winter waterlevel or any other variable decrease the model. 
+
+fit_pres_max1<-stan_glm(Presabs~Alti_mean+Alti_stdev+
+                           Max_Wr_Yr+
+                           Max_Spr_Yr+
+                           Max_Fl_Yr+
+                           Max_Sm_Yr+
+                           Max_Spr_Yr_Prev+
+                           Max_Wr_Yr_Prev,
+                         data=lipa_mailles_emb,
+                         family=binomial (link="logit"),
+                         prior=normal(0,2),
+                         chains=2,iter=10000)
+summary(fit_pres_max1)
+posterior_interval(fit_pres_max1, prob = 0.90)
+plot(fit_pres_max1)
+launch_shinystan(fit_pres_max1)
+
+plot(fit_pres_max1,regex_pars = c("Alti_mean","Alti_stdev","Max_Wr_Yr",
+                                   "Max_Spr_Yr",
+                                   "Max_Fl_Yr",
+                                   "Max_Sm_Yr",
+                                   "Max_Spr_Yr_Prev",
+                                   "Max_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_pres_max1,regex_pars = c("Alti_mean","Max_Wr_Yr",
+                                                 "Max_Spr_Yr",
+                                                 "Max_Fl_Yr",
+                                                 "Max_Sm_Yr",
+                                                 "Max_Spr_Yr_Prev",
+                                                 "Max_Wr_Yr_Prev"))
+
+fit_pres_max1b<-update(fit_pres_max1, Presabs~Alti_mean+Alti_stdev+Max_Wr_Yr+Max_Sm_Yr+
+                          Max_Spr_Yr)
+summary(fit_pres_max1b)
+
+fit_pres_max1c<-update(fit_pres_max1, Presabs~Alti_mean+Alti_stdev+Max_Sm_Yr+
+                         Max_Spr_Yr)
+summary(fit_pres_max1c)
+
+fit_pres_max1d<-update(fit_pres_max1, Presabs~Alti_mean+Alti_stdev+Max_Wr_Yr+
+                         Max_Spr_Yr)
+summary(fit_pres_max1d)
+
+fit_pres_max1e<-update(fit_pres_max1, Presabs~Alti_mean+Alti_stdev+Max_Wr_Yr+Max_Sm_Yr
+                        )
+summary(fit_pres_max1e)
+
+loo_fitb1<-loo(fit_pres_max1, k_threshold=0.7)
+loo_fitb1b<-loo(fit_pres_max1b, k_threshold=0.7)
+loo_fitb1c<-loo(fit_pres_max1c, k_threshold=0.7)
+loo_fitb1d<-loo(fit_pres_max1d, k_threshold=0.7)
+loo_fitb1e<-loo(fit_pres_max1e, k_threshold=0.7)
+
+loo_compare(loo_fitb1,loo_fitb1b,loo_fitb1c,loo_fitb1d,loo_fitb1e)
+
+#Je choisis le 1b car il est simplifié et n'est pas significativement différent du plus compliqué
+
+fit_pres_min1<-stan_glm(Presabs~Alti_mean+Alti_stdev+
+                          Min_Wr_Yr+
+                          Min_Spr_Yr+
+                          Min_Fl_Yr+
+                          Min_Sm_Yr+
+                          Min_Spr_Yr_Prev+
+                          Min_Wr_Yr_Prev,
+                        data=lipa_mailles_emb,
+                        family=binomial (link="logit"),
+                        prior=normal(0,2),
+                        chains=2,iter=10000)
+summary(fit_pres_min1)
+posterior_interval(fit_pres_min1, prob = 0.90)
+plot(fit_pres_min1)
+launch_shinystan(fit_pres_min1)
+
+plot(fit_pres_min1,regex_pars = c("Alti_mean","Alti_stdev","Min_Wr_Yr",
+                                  "Min_Spr_Yr",
+                                  "Min_Fl_Yr",
+                                  "Min_Sm_Yr",
+                                  "Min_Spr_Yr_Prev",
+                                  "Min_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_pres_min1,regex_pars = c("Alti_mean","Min_Wr_Yr",
+                                                "Min_Spr_Yr",
+                                                "Min_Fl_Yr",
+                                                "Min_Sm_Yr",
+                                                "Min_Spr_Yr_Prev",
+                                                "Min_Wr_Yr_Prev"))
+
+fit_pres_minb<-update(fit_pres_min1, Presabs~Alti_mean+Alti_stdev+Min_Wr_Yr+
+                         Min_Spr_Yr)
+summary(fit_pres_minb)
+
+fit_pres_min1c<-update(fit_pres_min1, Presabs~Alti_mean+Alti_stdev+
+                         Min_Spr_Yr)
+summary(fit_pres_min1c)
+
+fit_pres_min1d<-update(fit_pres_min1, Presabs~Alti_mean+Alti_stdev+Min_Wr_Yr
+                         )
+summary(fit_pres_min1d)
+
+
+loo_fitc1<-loo(fit_pres_min1, k_threshold=0.7)
+loo_fitc1b<-loo(fit_pres_minb, k_threshold=0.7)
+loo_fitc1c<-loo(fit_pres_min1c, k_threshold=0.7)
+loo_fitc1d<-loo(fit_pres_min1d, k_threshold=0.7)
+
+
+loo_compare(loo_fitc1,loo_fitc1b,loo_fitc1c,loo_fitc1d)
+
+# On garde le modele min1b pour le minimal
+
+#### Water levels relative to quadrat elevation ####
+
+lipa_mailles_emb$rel_Mean_Spr_Yr=lipa_mailles_emb$Mean_Spr_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Min_Spr_Yr=lipa_mailles_emb$Min_Spr_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Max_Spr_Yr=lipa_mailles_emb$Max_Spr_Yr-lipa_mailles_emb$Alti_mean
+
+lipa_mailles_emb$rel_Mean_Wr_Yr=lipa_mailles_emb$Mean_Wr_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Min_Wr_Yr=lipa_mailles_emb$Min_Wr_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Max_Wr_Yr=lipa_mailles_emb$Max_Wr_Yr-lipa_mailles_emb$Alti_mean
+
+lipa_mailles_emb$rel_Mean_Fl_Yr=lipa_mailles_emb$Mean_Fl_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Min_Fl_Yr=lipa_mailles_emb$Min_Fl_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Max_Fl_Yr=lipa_mailles_emb$Max_Fl_Yr-lipa_mailles_emb$Alti_mean
+
+lipa_mailles_emb$rel_Mean_Sm_Yr=lipa_mailles_emb$Mean_Sm_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Min_Sm_Yr=lipa_mailles_emb$Min_Sm_Yr-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Max_Sm_Yr=lipa_mailles_emb$Max_Sm_Yr-lipa_mailles_emb$Alti_mean
+
+lipa_mailles_emb$rel_Mean_Spr_Yr_Prev=lipa_mailles_emb$Mean_Spr_Yr_Prev-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Min_Spr_Yr_Prev=lipa_mailles_emb$Min_Spr_Yr_Prev-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Max_Spr_Yr_Prev=lipa_mailles_emb$Max_Spr_Yr_Prev-lipa_mailles_emb$Alti_mean
+
+lipa_mailles_emb$rel_Mean_Wr_Yr_Prev=lipa_mailles_emb$Mean_Wr_Yr_Prev-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Min_Wr_Yr_Prev=lipa_mailles_emb$Min_Wr_Yr_Prev-lipa_mailles_emb$Alti_mean
+lipa_mailles_emb$rel_Max_Wr_Yr_Prev=lipa_mailles_emb$Max_Wr_Yr_Prev-lipa_mailles_emb$Alti_mean
+
+str(lipa_mailles_emb)
+
+library("MuMIn")
+library('car')
+options(na.action = "na.pass")
+library(rstanarm)
+library(bayesplot)
+library(shinystan)
+
+fit_pres_max1<-stan_glm(Presabs~Alti_stdev+
+                          rel_Max_Wr_Yr+
+                          rel_Max_Spr_Yr+
+                          rel_Max_Fl_Yr+
+                          rel_Max_Sm_Yr+
+                          rel_Max_Spr_Yr_Prev+
+                          rel_Max_Wr_Yr_Prev,
+                        data=lipa_mailles_emb,
+                        family=binomial (link="logit"),
+                        prior=normal(0,2),
+                        chains=2,iter=5000)
+summary(fit_pres_max1b)
+posterior_interval(fit_pres_max1, prob = 0.90)
+plot(fit_pres_max1)
+launch_shinystan(fit_pres_max1)
+
+plot(fit_pres_max1,regex_pars = c("Alti_stdev","rel_Max_Wr_Yr",
+                                  "rel_Max_Spr_Yr",
+                                  "rel_Max_Fl_Yr",
+                                  "rel_Max_Sm_Yr",
+                                  "rel_Max_Spr_Yr_Prev",
+                                  "rel_Max_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_pres_max1,regex_pars = c("Alti_stdev","rel_Max_Wr_Yr",
+                                                "rel_Max_Spr_Yr",
+                                                "rel_Max_Fl_Yr",
+                                                "rel_Max_Sm_Yr",
+                                                "rel_Max_Spr_Yr_Prev",
+                                                "rel_Max_Wr_Yr_Prev"))
+
+fit_pres_max1b<-update(fit_pres_max1, Presabs~Alti_stdev+rel_Max_Wr_Yr+rel_Max_Wr_Yr_Prev+rel_Max_Spr_Yr+rel_Max_Fl_Yr)
+summary(fit_pres_max1b)
+
+fit_pres_max1c<-update(fit_pres_max1, Presabs~Alti_stdev+Alti_stdev+rel_Max_Wr_Yr+rel_Max_Wr_Yr_Prev+rel_Max_Spr_Yr+rel_Max_Fl_Yr
+                       +I(rel_Max_Wr_Yr)^2+I(rel_Max_Wr_Yr_Prev)^2+I(rel_Max_Spr_Yr)^2+I(rel_Max_Fl_Yr)^2
+                         )
+summary(fit_pres_max1c)
+
+
+loo_fitb1<-loo(fit_pres_max1, k_threshold=0.7)
+loo_fitb1b<-loo(fit_pres_max1b, k_threshold=0.7)
+loo_fitb1c<-loo(fit_pres_max1c, k_threshold=0.7)
+
+loo_compare(loo_fitb1,loo_fitb1b,loo_fitb1c)
+
+fit_pres_Mean1<-stan_glm(Presabs~Alti_stdev+
+                          rel_Mean_Wr_Yr+
+                          rel_Mean_Spr_Yr+
+                          rel_Mean_Fl_Yr+
+                          rel_Mean_Sm_Yr+
+                          rel_Mean_Spr_Yr_Prev+
+                          rel_Mean_Wr_Yr_Prev,
+                        data=lipa_mailles_emb,
+                        family=binomial (link="logit"),
+                        prior=normal(0,2),
+                        chains=2,iter=5000)
+summary(fit_pres_Mean1b)
+posterior_interval(fit_pres_Mean1, prob = 0.90)
+plot(fit_pres_Mean1)
+launch_shinystan(fit_pres_Mean1)
+
+plot(fit_pres_Mean1,regex_pars = c("Alti_stdev","rel_Mean_Wr_Yr",
+                                  "rel_Mean_Spr_Yr",
+                                  "rel_Mean_Fl_Yr",
+                                  "rel_Mean_Sm_Yr",
+                                  "rel_Mean_Spr_Yr_Prev",
+                                  "rel_Mean_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_pres_Mean1,regex_pars = c("Alti_stdev","rel_Mean_Wr_Yr",
+                                                "rel_Mean_Spr_Yr",
+                                                "rel_Mean_Fl_Yr",
+                                                "rel_Mean_Sm_Yr",
+                                                "rel_Mean_Spr_Yr_Prev",
+                                                "rel_Mean_Wr_Yr_Prev"))
+
+fit_pres_Mean1b<-update(fit_pres_Mean1, Presabs~Alti_stdev+rel_Mean_Wr_Yr+rel_Mean_Wr_Yr_Prev+rel_Mean_Spr_Yr+rel_Mean_Sm_Yr)
+summary(fit_pres_Mean1b)
+
+fit_pres_Mean1c<-update(fit_pres_Mean1, Presabs~Alti_stdev+Alti_stdev+rel_Mean_Wr_Yr+rel_Mean_Wr_Yr_Prev+rel_Mean_Spr_Yr+rel_Mean_Sm_Yr
+                       +I(rel_Mean_Wr_Yr)^2+I(rel_Mean_Wr_Yr_Prev)^2+I(rel_Mean_Spr_Yr)^2+I(rel_Mean_Sm_Yr)^2
+)
+summary(fit_pres_Mean1c)
+
+
+loo_fita1<-loo(fit_pres_Mean1, k_threshold=0.7)
+loo_fita1b<-loo(fit_pres_Mean1b, k_threshold=0.7)
+loo_fita1c<-loo(fit_pres_Mean1c, k_threshold=0.7)
+
+loo_compare(loo_fita1,loo_fita1b,loo_fita1c)
+
+fit_pres_Min1<-stan_glm(Presabs~Alti_stdev+
+                           rel_Min_Wr_Yr+
+                           rel_Min_Spr_Yr+
+                           rel_Min_Fl_Yr+
+                           rel_Min_Sm_Yr+
+                           rel_Min_Spr_Yr_Prev+
+                           rel_Min_Wr_Yr_Prev,
+                         data=lipa_mailles_emb,
+                         family=binomial (link="logit"),
+                         prior=normal(0,2),
+                         chains=2,iter=5000)
+summary(fit_pres_Min1)
+posterior_interval(fit_pres_Min1, prob = 0.90)
+plot(fit_pres_Min1)
+launch_shinystan(fit_pres_Min1)
+
+plot(fit_pres_Min1,regex_pars = c("Alti_stdev","rel_Min_Wr_Yr",
+                                   "rel_Min_Spr_Yr",
+                                   "rel_Min_Fl_Yr",
+                                   "rel_Min_Sm_Yr",
+                                   "rel_Min_Spr_Yr_Prev",
+                                   "rel_Min_Wr_Yr_Prev"))
+
+posterior_vs_prior(fit_pres_Min1,regex_pars = c("Alti_stdev","rel_Min_Wr_Yr",
+                                                 "rel_Min_Spr_Yr",
+                                                 "rel_Min_Fl_Yr",
+                                                 "rel_Min_Sm_Yr",
+                                                 "rel_Min_Spr_Yr_Prev",
+                                                 "rel_Min_Wr_Yr_Prev"))
+
+fit_pres_Min1b<-update(fit_pres_Min1, Presabs~Alti_stdev+
+                         rel_Min_Wr_Yr+I(rel_Min_Wr_Yr)^2+
+                         rel_Min_Spr_Yr+I(rel_Min_Spr_Yr)^2+
+                         rel_Min_Fl_Yr+I(rel_Min_Fl_Yr)^2+
+                         rel_Min_Sm_Yr+I(rel_Min_Sm_Yr)^2+
+                         rel_Min_Spr_Yr_Prev+I(rel_Min_Spr_Yr_Prev)^2+
+                         rel_Min_Wr_Yr_Prev+I(rel_Min_Wr_Yr_Prev)^2)
+
+fit_pres_Min1c<-update(fit_pres_Min1, Presabs~Alti_stdev+
+                         rel_Min_Wr_Yr+
+                         rel_Min_Spr_Yr+
+                         rel_Min_Fl_Yr+
+                         rel_Min_Wr_Yr_Prev)
+
+summary(fit_pres_Min1b)
+posterior_interval(fit_pres_Min1b, prob = 0.90)
+
+
+loo_fitc1<-loo(fit_pres_Min1, k_threshold=0.7)
+loo_fitc1b<-loo(fit_pres_Min1b, k_threshold=0.7)
+loo_fitc1c<-loo(fit_pres_Min1c, k_threshold=0.7)
+
+loo_compare(loo_fitc1,loo_fitc1b,loo_fitc1c)
